@@ -1,0 +1,7 @@
+{
+  "host": "127.0.0.1",
+  "port": 19081,
+  "ollama_url": "http://127.0.0.1:11434",
+  "allow_origins": [],
+  "auto_detect_upstream": true
+}

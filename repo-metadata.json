@@ -1,0 +1,13 @@
+{
+  "name": "webmasteros-ollama-bridge",
+  "display_name": "WebmasterOS Ollama Bridge",
+  "visibility": "public",
+  "repository_role": "standalone-software-surface",
+  "release_channel": "github-releases",
+  "source_directory": "apps/ollama-bridge",
+  "intended_split_strategy": "standalone-public-repo",
+  "notes": [
+    "This surface is intended to become its own public GitHub repository.",
+    "The monorepo remains the staging location until the standalone repo is created."
+  ]
+}

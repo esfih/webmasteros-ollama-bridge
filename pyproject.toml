@@ -1,0 +1,29 @@
+[project]
+name = "webmasteros-ollama-bridge"
+version = "0.1.0"
+description = "Local helper that lets the WebmasterOS browser extension talk to Ollama outside the browser runtime."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "WebmasterOS" }
+]
+keywords = ["webmasteros", "ollama", "bridge", "browser-extension", "localhost"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Internet :: Proxy Servers"
+]
+
+[project.scripts]
+webmasteros-ollama-bridge = "bridge:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["bridge"]
