@@ -25,7 +25,7 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.1"
+APP_VERSION = "0.1.2"
 
 LOGGER = logging.getLogger("webmasteros.ollama_bridge")
 

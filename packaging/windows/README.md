@@ -33,7 +33,8 @@ The Windows build is intended to:
 
 - stay open as a console app while the bridge is running
 - write runtime logs to the user-local bridge log file
-- keep the console visible on fatal startup failure so first-time users can read the error
+- write a bootstrap `launcher.log` file before the bridge process starts
+- keep the console visible on fatal startup failure so first-time users can read the error and log paths
 
 ## Local Build Notes
 

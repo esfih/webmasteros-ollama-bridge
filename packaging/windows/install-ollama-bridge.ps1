@@ -29,7 +29,29 @@ if (-not (Test-Path $ConfigPath)) {
 
 $launcher = @"
 @echo off
-$PythonCmd "$InstallRoot\bridge.py" --config "$ConfigPath"
+setlocal
+set "APP_ROOT=$InstallRoot"
+set "CONFIG_ROOT=$ConfigRoot"
+set "LOG_DIR=%CONFIG_ROOT%\logs"
+set "LAUNCHER_LOG=%LOG_DIR%\launcher.log"
+if not exist "%CONFIG_ROOT%" mkdir "%CONFIG_ROOT%"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+echo ==== [%DATE% %TIME%] launcher start ====>> "%LAUNCHER_LOG%"
+echo APP_ROOT=%APP_ROOT%>> "%LAUNCHER_LOG%"
+echo CONFIG_PATH=%CONFIG_ROOT%\config.json>> "%LAUNCHER_LOG%"
+$PythonCmd "%APP_ROOT%\bridge.py" --config "%CONFIG_ROOT%\config.json"
+set "EXITCODE=%ERRORLEVEL%"
+echo EXITCODE=%EXITCODE%>> "%LAUNCHER_LOG%"
+if not "%EXITCODE%"=="0" (
+  echo.
+  echo WebmasterOS Ollama Bridge exited with code %EXITCODE%.
+  echo Check these logs:
+  echo   %LAUNCHER_LOG%
+  echo   %CONFIG_ROOT%\logs\bridge.log
+  echo.
+  pause
+)
+exit /b %EXITCODE%
 "@
 Set-Content -Path (Join-Path $InstallRoot "run-ollama-bridge.cmd") -Value $launcher -Encoding ASCII
 

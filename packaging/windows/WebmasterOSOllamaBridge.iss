@@ -1,5 +1,5 @@
 #define AppName "WebmasterOS Ollama Bridge"
-#define AppVersion "0.1.1"
+#define AppVersion "0.1.2"
 #define AppPublisher "WebmasterOS"
 #define AppExeName "WebmasterOSOllamaBridge.exe"
 
@@ -38,11 +38,11 @@ Source: "{#StageRoot}\WebmasterOSOllamaBridge\*"; DestDir: "{app}"; Flags: recur
 Source: "{#StageRoot}\install-ollama-bridge.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{group}\Run Bridge"; Filename: "{app}\{#AppExeName}"
+Name: "{group}\{#AppName}"; Filename: "{app}\run-ollama-bridge.cmd"
+Name: "{group}\Run Bridge"; Filename: "{app}\run-ollama-bridge.cmd"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName} now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\run-ollama-bridge.cmd"; Description: "Launch {#AppName} now"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\WebmasterOS\OllamaBridge"

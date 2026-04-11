@@ -40,6 +40,10 @@ The bridge also writes a local log file by default:
 - macOS: `~/Library/Application Support/WebmasterOS/OllamaBridge/logs/bridge.log`
 - Linux: `~/.config/webmasteros/ollama-bridge/logs/bridge.log`
 
+Windows packaging also writes a launcher/bootstrap log:
+
+- Windows: `%APPDATA%\\WebmasterOS\\OllamaBridge\\logs\\launcher.log`
+
 ## Run
 
 Typical desktop setup:
@@ -95,7 +99,7 @@ This first bridge is intentionally tiny and Python-based so it can work on Windo
 If the bridge fails during startup:
 
 - it writes the failure details to the local bridge log file
-- on Windows, the console build now stays open long enough to show the error and the log path instead of disappearing immediately
+- on Windows, the launcher writes a `launcher.log` file, records the process exit code, and keeps the console open on non-zero exit
 
 ## Installer Sources
 

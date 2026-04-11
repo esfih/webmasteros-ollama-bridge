@@ -59,7 +59,31 @@ Copy-Item (Join-Path $PSScriptRoot "install-ollama-bridge.ps1") (Join-Path $Stag
 
 $Launcher = @"
 @echo off
-start "" "%LOCALAPPDATA%\WebmasterOS\OllamaBridge\$ExeName"
+setlocal
+set "APP_ROOT=%LOCALAPPDATA%\WebmasterOS\OllamaBridge"
+set "CONFIG_ROOT=%APPDATA%\WebmasterOS\OllamaBridge"
+set "LOG_DIR=%CONFIG_ROOT%\logs"
+set "LAUNCHER_LOG=%LOG_DIR%\launcher.log"
+if not exist "%CONFIG_ROOT%" mkdir "%CONFIG_ROOT%"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+echo ==== [%DATE% %TIME%] launcher start ====>> "%LAUNCHER_LOG%"
+echo APP_ROOT=%APP_ROOT%>> "%LAUNCHER_LOG%"
+echo CONFIG_ROOT=%CONFIG_ROOT%>> "%LAUNCHER_LOG%"
+echo EXE=%APP_ROOT%\$ExeName>> "%LAUNCHER_LOG%"
+"%APP_ROOT%\$ExeName"
+set "EXITCODE=%ERRORLEVEL%"
+echo EXITCODE=%EXITCODE%>> "%LAUNCHER_LOG%"
+if not "%EXITCODE%"=="0" (
+  echo Bridge exited with code %EXITCODE%.>> "%LAUNCHER_LOG%"
+  echo.
+  echo WebmasterOS Ollama Bridge exited with code %EXITCODE%.
+  echo Check these logs:
+  echo   %LAUNCHER_LOG%
+  echo   %CONFIG_ROOT%\logs\bridge.log
+  echo.
+  pause
+)
+exit /b %EXITCODE%
 "@
 Set-Content -Path (Join-Path $StageAppRoot "run-ollama-bridge.cmd") -Value $Launcher -Encoding ASCII
 

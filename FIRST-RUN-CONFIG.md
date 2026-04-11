@@ -34,6 +34,7 @@
 - keep the first version local-only and user-scoped
 - never bind publicly by default
 - if no explicit log path is configured, write logs into a user-local `logs/bridge.log` file beside the config
+- on Windows packaging, also write a bootstrap `logs/launcher.log` file that captures the launcher start and the bridge exit code
 
 ## WSL Note
 

@@ -4,6 +4,14 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.2] - 2026-04-11
+
+### Changed
+
+- Bridge runtime now writes a persistent local log file by default
+- Windows startup failures now stay visible in the console and report the log path instead of disappearing immediately
+- Windows packaging now launches through `run-ollama-bridge.cmd`, writes `launcher.log`, and records the bridge exit code for early-startup diagnosis
+
 ## [0.1.1] - 2026-04-11
 
 ### Changed
