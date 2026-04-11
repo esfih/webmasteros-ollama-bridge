@@ -4,6 +4,22 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.4] - 2026-04-11
+
+### Added
+
+- Bridge-level no-think proxy mode with `nothink` and `passthrough` runtime modes
+- Injection of `think: false`, `reasoning_effort: "none"`, and `reasoning.effort: "none"` for chat requests in `nothink` mode
+- Optional `/no_think` system-message injection at the bridge layer
+- Response scrubbing for accidental `<think>...</think>` blocks
+- New control endpoints:
+  - `GET /proxy/status`
+  - `POST /proxy/mode`
+
+### Changed
+
+- `/health` now reports bridge proxy-mode details in addition to upstream Ollama health
+
 ## [0.1.3] - 2026-04-11
 
 ### Fixed

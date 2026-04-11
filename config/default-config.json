@@ -3,5 +3,8 @@
   "port": 19081,
   "ollama_url": "http://127.0.0.1:11434",
   "allow_origins": [],
-  "auto_detect_upstream": true
+  "auto_detect_upstream": true,
+  "proxy_mode": "nothink",
+  "inject_system_nothink": true,
+  "strip_think_blocks": true
 }

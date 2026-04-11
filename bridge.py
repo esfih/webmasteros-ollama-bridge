@@ -14,7 +14,9 @@ import json
 import logging
 import os
 import platform
+import re
 import sys
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,9 +27,10 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.4"
 
 LOGGER = logging.getLogger("webmasteros.ollama_bridge")
+THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
 
 
 def default_config_path() -> Path:
@@ -49,6 +52,9 @@ def default_config_values() -> dict:
         "allow_origins": [],
         "auto_detect_upstream": True,
         "log_file": "",
+        "proxy_mode": "nothink",
+        "inject_system_nothink": True,
+        "strip_think_blocks": True,
     }
 
 
@@ -99,6 +105,9 @@ def load_config(path: Path) -> dict:
     merged["port"] = int(merged.get("port", DEFAULT_BIND_PORT))
     merged["allow_origins"] = list(merged.get("allow_origins") or [])
     merged["log_file"] = str(Path(merged.get("log_file") or default_log_path(path)).expanduser())
+    merged["proxy_mode"] = normalize_proxy_mode(merged.get("proxy_mode", "nothink"))
+    merged["inject_system_nothink"] = bool(merged.get("inject_system_nothink", True))
+    merged["strip_think_blocks"] = bool(merged.get("strip_think_blocks", True))
     return merged
 
 
@@ -119,6 +128,12 @@ def parse_args() -> argparse.Namespace:
         action="append",
         default=None,
         help="Optional allowed Origin header. May be repeated. Overrides config. Default is permissive for local bridge use.",
+    )
+    parser.add_argument(
+        "--proxy-mode",
+        default=None,
+        choices=["nothink", "passthrough"],
+        help="Proxy mode for upstream chat requests. 'nothink' injects reasoning-disable directives.",
     )
     return parser.parse_args()
 
@@ -165,6 +180,66 @@ def json_request(url: str, method: str = "GET", payload: dict | None = None, tim
         return 502, {"error": str(exc.reason)}, {}
 
 
+def normalize_proxy_mode(value: str | None) -> str:
+    return "passthrough" if str(value or "").strip().lower() == "passthrough" else "nothink"
+
+
+def inject_no_think(payload: dict, inject_system_nothink: bool = True) -> dict:
+    if not isinstance(payload, dict):
+        return payload
+
+    enriched = json.loads(json.dumps(payload))
+    enriched["think"] = False
+    enriched["reasoning_effort"] = "none"
+
+    reasoning = enriched.get("reasoning")
+    if isinstance(reasoning, dict):
+        reasoning = dict(reasoning)
+    else:
+        reasoning = {}
+    reasoning["effort"] = "none"
+    enriched["reasoning"] = reasoning
+
+    messages = enriched.get("messages")
+    if inject_system_nothink and isinstance(messages, list):
+        system_message = next(
+            (
+                message
+                for message in messages
+                if isinstance(message, dict) and message.get("role") == "system" and isinstance(message.get("content"), str)
+            ),
+            None,
+        )
+        if system_message:
+            if "/no_think" not in system_message["content"]:
+                system_message["content"] = "/no_think\n" + system_message["content"]
+        else:
+            messages.insert(0, {"role": "system", "content": "/no_think"})
+
+    return enriched
+
+
+def strip_think_blocks_from_text(value: str) -> str:
+    text = str(value or "")
+    text = THINK_BLOCK_RE.sub("", text)
+    return text.strip()
+
+
+def sanitize_chat_response(payload: dict, strip_think_blocks: bool) -> dict:
+    if not strip_think_blocks or not isinstance(payload, dict):
+        return payload
+
+    cleaned = json.loads(json.dumps(payload))
+
+    if isinstance(cleaned.get("message"), dict) and isinstance(cleaned["message"].get("content"), str):
+        cleaned["message"]["content"] = strip_think_blocks_from_text(cleaned["message"]["content"])
+
+    if isinstance(cleaned.get("response"), str):
+        cleaned["response"] = strip_think_blocks_from_text(cleaned["response"])
+
+    return cleaned
+
+
 ARGS = parse_args()
 CONFIG_PATH = Path(ARGS.config).expanduser()
 
@@ -183,6 +258,10 @@ BIND_PORT = ARGS.port if ARGS.port is not None else CONFIG["port"]
 UPSTREAM = (ARGS.ollama_url or CONFIG["ollama_url"]).rstrip("/")
 ALLOWED_ORIGINS = set(ARGS.allow_origin if ARGS.allow_origin is not None else CONFIG["allow_origins"])
 LOG_PATH = Path(CONFIG["log_file"]).expanduser()
+PROXY_MODE = normalize_proxy_mode(ARGS.proxy_mode or CONFIG["proxy_mode"])
+INJECT_SYSTEM_NOTHINK = bool(CONFIG["inject_system_nothink"])
+STRIP_THINK_BLOCKS = bool(CONFIG["strip_think_blocks"])
+REQUEST_COUNT = 0
 
 setup_logging(LOG_PATH)
 
@@ -196,6 +275,9 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        if self.path == "/proxy/status":
+            self._handle_proxy_status()
+            return
         if self.path == "/health":
             self._handle_health()
             return
@@ -205,10 +287,47 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         self._write_json(404, {"success": False, "error": "not_found"})
 
     def do_POST(self) -> None:
+        if self.path == "/proxy/mode":
+            self._handle_proxy_mode()
+            return
         if self.path == "/api/chat":
             self._proxy_chat()
             return
         self._write_json(404, {"success": False, "error": "not_found"})
+
+    def _handle_proxy_status(self) -> None:
+        self._write_json(
+            200,
+            {
+                "success": True,
+                "version": APP_VERSION,
+                "proxy_mode": PROXY_MODE,
+                "inject_system_nothink": INJECT_SYSTEM_NOTHINK,
+                "strip_think_blocks": STRIP_THINK_BLOCKS,
+                "request_count": REQUEST_COUNT,
+                "upstream_url": UPSTREAM,
+                "log_path": str(LOG_PATH),
+            },
+        )
+
+    def _handle_proxy_mode(self) -> None:
+        global PROXY_MODE
+        payload = self._read_json_body()
+        if payload is None:
+            self._write_json(400, {"success": False, "error": "invalid_json"})
+            return
+        next_mode = normalize_proxy_mode(payload.get("mode"))
+        PROXY_MODE = next_mode
+        LOGGER.info("Proxy mode updated to %s", PROXY_MODE)
+        self._write_json(
+            200,
+            {
+                "success": True,
+                "proxy_mode": PROXY_MODE,
+                "inject_system_nothink": INJECT_SYSTEM_NOTHINK,
+                "strip_think_blocks": STRIP_THINK_BLOCKS,
+            },
+        )
 
     def _handle_health(self) -> None:
         status, payload, _headers = json_request(f"{UPSTREAM}/api/tags", method="GET")
@@ -224,6 +343,9 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
                 "upstream_url": UPSTREAM,
                 "upstream_status": status,
                 "upstream_models": model_names,
+                "proxy_mode": PROXY_MODE,
+                "inject_system_nothink": INJECT_SYSTEM_NOTHINK,
+                "strip_think_blocks": STRIP_THINK_BLOCKS,
                 "error": None if status == 200 else payload.get("error", "upstream_unavailable"),
             },
         )
@@ -233,11 +355,26 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         self._write_json(status, payload)
 
     def _proxy_chat(self) -> None:
+        global REQUEST_COUNT
         payload = self._read_json_body()
         if payload is None:
             self._write_json(400, {"error": "invalid_json"})
             return
-        status, response_payload, _headers = json_request(f"{UPSTREAM}/api/chat", method="POST", payload=payload)
+        outgoing_payload = payload
+        if PROXY_MODE == "nothink":
+            outgoing_payload = inject_no_think(outgoing_payload, INJECT_SYSTEM_NOTHINK)
+        started_at = time.time()
+        status, response_payload, _headers = json_request(f"{UPSTREAM}/api/chat", method="POST", payload=outgoing_payload)
+        elapsed_ms = int((time.time() - started_at) * 1000)
+        response_payload = sanitize_chat_response(response_payload, STRIP_THINK_BLOCKS)
+        REQUEST_COUNT += 1
+        LOGGER.info(
+            "RESP /api/chat %s %sms mode:%s model:%s",
+            status,
+            elapsed_ms,
+            PROXY_MODE,
+            outgoing_payload.get("model", "") if isinstance(outgoing_payload, dict) else "",
+        )
         self._write_json(status, response_payload)
 
     def _read_json_body(self) -> dict | None:

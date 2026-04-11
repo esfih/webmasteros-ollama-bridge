@@ -6,6 +6,8 @@ It is now treated as a fourth software surface in the WebmasterOS stack and is i
 
 It allows the browser extension to talk to local Ollama through a non-browser process, which avoids browser-origin restrictions on direct extension-to-Ollama chat.
 
+It also now includes an optional no-think compatibility layer for reasoning-heavy local models such as Qwen or DeepSeek variants.
+
 ## Why It Exists
 
 Direct browser-extension chat to Ollama may be blocked by origin policy even when Ollama works fine from:
@@ -44,6 +46,19 @@ Windows packaging also writes a launcher/bootstrap log:
 
 - Windows: `%APPDATA%\\WebmasterOS\\OllamaBridge\\logs\\launcher.log`
 
+Important no-think defaults:
+
+- `proxy_mode`: `nothink`
+- `inject_system_nothink`: `true`
+- `strip_think_blocks`: `true`
+
+That means the bridge will, by default:
+
+- inject `think: false`
+- inject `reasoning_effort: "none"` and `reasoning.effort: "none"`
+- prepend `/no_think` to the system message when possible
+- strip accidental `<think>...</think>` blocks from returned text
+
 ## Run
 
 Typical desktop setup:
@@ -81,6 +96,33 @@ python3 bridge.py --port 19081 --ollama-url http://127.0.0.1:11434
 - `GET /health`
 - `GET /api/tags`
 - `POST /api/chat`
+- `GET /proxy/status`
+- `POST /proxy/mode`
+
+## Proxy Modes
+
+The bridge now supports two runtime modes:
+
+- `nothink`: default, injects no-think directives for faster and more deterministic responses
+- `passthrough`: forwards requests unchanged
+
+Switch mode without restarting:
+
+```bash
+curl -X POST http://127.0.0.1:19081/proxy/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"passthrough"}'
+
+curl -X POST http://127.0.0.1:19081/proxy/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"nothink"}'
+```
+
+Inspect current mode and request counters:
+
+```bash
+curl http://127.0.0.1:19081/proxy/status
+```
 
 ## Browser Extension Settings
 

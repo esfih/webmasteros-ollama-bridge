@@ -23,7 +23,10 @@
   "ollama_url": "http://127.0.0.1:11434",
   "allow_origins": [],
   "auto_detect_upstream": true,
-  "log_file": ""
+  "log_file": "",
+  "proxy_mode": "nothink",
+  "inject_system_nothink": true,
+  "strip_think_blocks": true
 }
 ```
 
@@ -35,6 +38,9 @@
 - never bind publicly by default
 - if no explicit log path is configured, write logs into a user-local `logs/bridge.log` file beside the config
 - on Windows packaging, also write a bootstrap `logs/launcher.log` file that captures the launcher start and the bridge exit code
+- default bridge behavior is `nothink` mode so reasoning-heavy models become faster and less likely to leak `<think>` blocks into app responses
+- `inject_system_nothink` keeps `/no_think` in the system message when messages are present
+- `strip_think_blocks` removes accidental `<think>...</think>` blocks from Ollama responses before they return to the extension
 
 ## WSL Note
 
