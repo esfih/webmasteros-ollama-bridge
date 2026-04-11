@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import platform
 import sys
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -23,7 +25,9 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.1.1"
+
+LOGGER = logging.getLogger("webmasteros.ollama_bridge")
 
 
 def default_config_path() -> Path:
@@ -44,7 +48,12 @@ def default_config_values() -> dict:
         "ollama_url": DEFAULT_UPSTREAM,
         "allow_origins": [],
         "auto_detect_upstream": True,
+        "log_file": "",
     }
+
+
+def default_log_path(config_path: Path) -> Path:
+    return config_path.parent / "logs" / "bridge.log"
 
 
 def detect_upstream(default_value: str) -> str:
@@ -89,6 +98,7 @@ def load_config(path: Path) -> dict:
     merged["host"] = str(merged.get("host", DEFAULT_BIND_HOST))
     merged["port"] = int(merged.get("port", DEFAULT_BIND_PORT))
     merged["allow_origins"] = list(merged.get("allow_origins") or [])
+    merged["log_file"] = str(Path(merged.get("log_file") or default_log_path(path)).expanduser())
     return merged
 
 
@@ -130,6 +140,27 @@ BIND_HOST = ARGS.host or CONFIG["host"]
 BIND_PORT = ARGS.port if ARGS.port is not None else CONFIG["port"]
 UPSTREAM = (ARGS.ollama_url or CONFIG["ollama_url"]).rstrip("/")
 ALLOWED_ORIGINS = set(ARGS.allow_origin if ARGS.allow_origin is not None else CONFIG["allow_origins"])
+LOG_PATH = Path(CONFIG["log_file"]).expanduser()
+
+
+def setup_logging(log_path: Path) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    LOGGER.setLevel(logging.INFO)
+    LOGGER.handlers.clear()
+    LOGGER.propagate = False
+
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    LOGGER.addHandler(file_handler)
+
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    LOGGER.addHandler(stream_handler)
+
+
+setup_logging(LOG_PATH)
 
 
 def json_request(url: str, method: str = "GET", payload: dict | None = None, timeout: int = 300) -> tuple[int, dict, dict]:
@@ -190,6 +221,7 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
                 "bridge_ok": status == 200,
                 "version": APP_VERSION,
                 "config_path": str(CONFIG_PATH),
+                "log_path": str(LOG_PATH),
                 "upstream_url": UPSTREAM,
                 "upstream_status": status,
                 "upstream_models": model_names,
@@ -237,19 +269,71 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 
     def log_message(self, fmt: str, *args) -> None:
-        sys.stdout.write(f"[Ollama Bridge] {self.address_string()} - {fmt % args}\n")
-        sys.stdout.flush()
+        LOGGER.info("[Ollama Bridge] %s - %s", self.address_string(), fmt % args)
+
+
+def wait_on_windows_failure(message: str) -> None:
+    if platform.system().lower() != "windows":
+        return
+    if not sys.stdin or not sys.stdin.isatty():
+        return
+    try:
+        input(f"{message}\nPress Enter to close WebmasterOS Ollama Bridge...")
+    except EOFError:
+        return
 
 
 def main() -> int:
-    server = ThreadingHTTPServer((BIND_HOST, BIND_PORT), OllamaBridgeHandler)
-    print(
-        f"WebmasterOS Ollama Bridge v{APP_VERSION} listening on http://{BIND_HOST}:{BIND_PORT} "
-        f"-> upstream {UPSTREAM} | config {CONFIG_PATH}"
+    LOGGER.info("Starting WebmasterOS Ollama Bridge v%s", APP_VERSION)
+    LOGGER.info("Config path: %s", CONFIG_PATH)
+    LOGGER.info("Log path: %s", LOG_PATH)
+    LOGGER.info("Requested bind: http://%s:%s", BIND_HOST, BIND_PORT)
+    LOGGER.info("Upstream Ollama URL: %s", UPSTREAM)
+
+    try:
+        server = ThreadingHTTPServer((BIND_HOST, BIND_PORT), OllamaBridgeHandler)
+    except OSError as exc:
+        LOGGER.exception("Bridge startup failed while binding to %s:%s", BIND_HOST, BIND_PORT)
+        wait_on_windows_failure(
+            f"Bridge startup failed: {exc}\nLog file: {LOG_PATH}"
+        )
+        return 1
+
+    LOGGER.info(
+        "WebmasterOS Ollama Bridge listening on http://%s:%s -> upstream %s",
+        BIND_HOST,
+        BIND_PORT,
+        UPSTREAM,
     )
-    server.serve_forever()
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        LOGGER.info("Bridge interrupted by user")
+    except Exception:
+        LOGGER.exception("Bridge runtime crashed unexpectedly")
+        wait_on_windows_failure(
+            f"Bridge runtime crashed unexpectedly.\nLog file: {LOG_PATH}"
+        )
+        return 1
+    finally:
+        try:
+            server.server_close()
+        except Exception:
+            LOGGER.exception("Bridge shutdown raised an unexpected error")
+
+    LOGGER.info("Bridge stopped cleanly")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        LOGGER.error("Fatal bridge bootstrap error\n%s", traceback.format_exc())
+        wait_on_windows_failure(
+            f"Fatal bridge bootstrap error.\nLog file: {LOG_PATH}"
+        )
+        raise

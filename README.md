@@ -34,6 +34,12 @@ Default locations:
 - macOS: `~/Library/Application Support/WebmasterOS/OllamaBridge/config.json`
 - Linux: `~/.config/webmasteros/ollama-bridge/config.json`
 
+The bridge also writes a local log file by default:
+
+- Windows: `%APPDATA%\\WebmasterOS\\OllamaBridge\\logs\\bridge.log`
+- macOS: `~/Library/Application Support/WebmasterOS/OllamaBridge/logs/bridge.log`
+- Linux: `~/.config/webmasteros/ollama-bridge/logs/bridge.log`
+
 ## Run
 
 Typical desktop setup:
@@ -83,6 +89,13 @@ Use:
 ## Cross-Platform Note
 
 This first bridge is intentionally tiny and Python-based so it can work on Windows, macOS, and Linux with minimal code. Packaging it as a native installer or tray app can come later.
+
+## Startup Diagnostics
+
+If the bridge fails during startup:
+
+- it writes the failure details to the local bridge log file
+- on Windows, the console build now stays open long enough to show the error and the log path instead of disappearing immediately
 
 ## Installer Sources
 
