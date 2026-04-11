@@ -27,7 +27,7 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 
 LOGGER = logging.getLogger("webmasteros.ollama_bridge")
 THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
@@ -108,7 +108,27 @@ def load_config(path: Path) -> dict:
     merged["proxy_mode"] = normalize_proxy_mode(merged.get("proxy_mode", "nothink"))
     merged["inject_system_nothink"] = bool(merged.get("inject_system_nothink", True))
     merged["strip_think_blocks"] = bool(merged.get("strip_think_blocks", True))
+    migrate_config_file(path, data, merged)
     return merged
+
+
+def migrate_config_file(path: Path, raw_data: dict, merged: dict) -> None:
+    if not isinstance(raw_data, dict):
+        raw_data = {}
+
+    persisted = dict(raw_data)
+    changed = False
+
+    for key in ["proxy_mode", "inject_system_nothink", "strip_think_blocks"]:
+        if key not in persisted or persisted.get(key) != merged.get(key):
+            persisted[key] = merged.get(key)
+            changed = True
+
+    if not changed:
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(persisted, indent=2) + "\n", encoding="utf-8")
 
 
 def parse_args() -> argparse.Namespace:

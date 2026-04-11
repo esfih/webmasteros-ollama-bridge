@@ -4,6 +4,13 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.6] - 2026-04-11
+
+### Changed
+
+- Existing bridge config files are now auto-migrated on startup so missing no-think keys are written back to disk
+- Upgrade migration preserves existing user values while making runtime no-think defaults explicit in the config file
+
 ## [0.1.5] - 2026-04-11
 
 ### Fixed

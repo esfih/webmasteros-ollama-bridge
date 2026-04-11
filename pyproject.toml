@@ -1,6 +1,6 @@
 [project]
 name = "webmasteros-ollama-bridge"
-version = "0.1.5"
+version = "0.1.6"
 description = "Local helper that lets the WebmasterOS browser extension talk to Ollama outside the browser runtime."
 readme = "README.md"
 requires-python = ">=3.10"

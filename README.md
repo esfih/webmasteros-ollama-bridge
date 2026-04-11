@@ -30,6 +30,8 @@ The bridge changes the path to:
 
 The bridge writes a user-local config file on first run.
 
+On upgrade, the bridge now also auto-migrates older config files so newer no-think settings become explicit on disk without overwriting the user's existing upstream values.
+
 Default locations:
 
 - Windows: `%APPDATA%\WebmasterOS\OllamaBridge\config.json`

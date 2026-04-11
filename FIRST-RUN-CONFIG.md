@@ -33,6 +33,7 @@
 ## First-Run Rules
 
 - if no config exists, write a default config file
+- if an older config exists but is missing newer no-think keys, auto-migrate the file in place and preserve the user's existing values
 - if `auto_detect_upstream` is enabled, probe likely Ollama addresses and persist the best reachable upstream in memory
 - keep the first version local-only and user-scoped
 - never bind publicly by default

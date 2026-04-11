@@ -1,5 +1,5 @@
 #define AppName "WebmasterOS Ollama Bridge"
-#define AppVersion "0.1.5"
+#define AppVersion "0.1.6"
 #define AppPublisher "WebmasterOS"
 #define AppExeName "WebmasterOSOllamaBridge.exe"
 
