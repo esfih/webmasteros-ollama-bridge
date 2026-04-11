@@ -1,5 +1,5 @@
 #define AppName "WebmasterOS Ollama Bridge"
-#define AppVersion "0.1.4"
+#define AppVersion "0.1.5"
 #define AppPublisher "WebmasterOS"
 #define AppExeName "WebmasterOSOllamaBridge.exe"
 
@@ -32,6 +32,9 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\{#AppExeName}
+CloseApplications=yes
+CloseApplicationsFilter={#AppExeName}
+RestartApplications=no
 
 [Files]
 Source: "{#StageRoot}\WebmasterOSOllamaBridge\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -46,3 +49,21 @@ Filename: "{app}\run-ollama-bridge.cmd"; Description: "Launch {#AppName} now"; F
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\WebmasterOS\OllamaBridge"
+
+[Code]
+function StopBridgeProcesses(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  Exec(ExpandConstant('{sys}\\taskkill.exe'), '/IM WebmasterOSOllamaBridge.exe /F', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(800);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssInstall then
+  begin
+    StopBridgeProcesses();
+  end;
+end;

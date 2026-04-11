@@ -4,6 +4,13 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.5] - 2026-04-11
+
+### Fixed
+
+- Windows installer now attempts to stop a running `WebmasterOSOllamaBridge.exe` during upgrade instead of leaving users blocked at the "Closing applications" step
+- Windows installer now enables Inno Setup close-app detection for bridge upgrades
+
 ## [0.1.4] - 2026-04-11
 
 ### Added

@@ -161,3 +161,7 @@ The Windows packaging scaffold now includes:
 - a PowerShell build script
 - an Inno Setup installer definition
 - a GitHub Actions workflow for Windows release artifacts
+
+Windows upgrade behavior:
+
+- the installer now attempts to stop `WebmasterOSOllamaBridge.exe` automatically during upgrade before replacing files
