@@ -25,7 +25,7 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.2"
+APP_VERSION = "0.1.3"
 
 LOGGER = logging.getLogger("webmasteros.ollama_bridge")
 
@@ -123,26 +123,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-ARGS = parse_args()
-CONFIG_PATH = Path(ARGS.config).expanduser()
-
-if ARGS.print_config_path:
-    print(CONFIG_PATH)
-    raise SystemExit(0)
-
-if ARGS.write_default_config:
-    ensure_config_file(CONFIG_PATH)
-    print(f"Wrote default config to {CONFIG_PATH}")
-    raise SystemExit(0)
-
-CONFIG = load_config(CONFIG_PATH)
-BIND_HOST = ARGS.host or CONFIG["host"]
-BIND_PORT = ARGS.port if ARGS.port is not None else CONFIG["port"]
-UPSTREAM = (ARGS.ollama_url or CONFIG["ollama_url"]).rstrip("/")
-ALLOWED_ORIGINS = set(ARGS.allow_origin if ARGS.allow_origin is not None else CONFIG["allow_origins"])
-LOG_PATH = Path(CONFIG["log_file"]).expanduser()
-
-
 def setup_logging(log_path: Path) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     LOGGER.setLevel(logging.INFO)
@@ -158,9 +138,6 @@ def setup_logging(log_path: Path) -> None:
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
     LOGGER.addHandler(stream_handler)
-
-
-setup_logging(LOG_PATH)
 
 
 def json_request(url: str, method: str = "GET", payload: dict | None = None, timeout: int = 300) -> tuple[int, dict, dict]:
@@ -186,6 +163,28 @@ def json_request(url: str, method: str = "GET", payload: dict | None = None, tim
         return exc.code, data, dict(exc.headers.items())
     except URLError as exc:
         return 502, {"error": str(exc.reason)}, {}
+
+
+ARGS = parse_args()
+CONFIG_PATH = Path(ARGS.config).expanduser()
+
+if ARGS.print_config_path:
+    print(CONFIG_PATH)
+    raise SystemExit(0)
+
+if ARGS.write_default_config:
+    ensure_config_file(CONFIG_PATH)
+    print(f"Wrote default config to {CONFIG_PATH}")
+    raise SystemExit(0)
+
+CONFIG = load_config(CONFIG_PATH)
+BIND_HOST = ARGS.host or CONFIG["host"]
+BIND_PORT = ARGS.port if ARGS.port is not None else CONFIG["port"]
+UPSTREAM = (ARGS.ollama_url or CONFIG["ollama_url"]).rstrip("/")
+ALLOWED_ORIGINS = set(ARGS.allow_origin if ARGS.allow_origin is not None else CONFIG["allow_origins"])
+LOG_PATH = Path(CONFIG["log_file"]).expanduser()
+
+setup_logging(LOG_PATH)
 
 
 class OllamaBridgeHandler(BaseHTTPRequestHandler):

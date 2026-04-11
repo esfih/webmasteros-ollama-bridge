@@ -4,6 +4,12 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.3] - 2026-04-11
+
+### Fixed
+
+- Windows startup no longer crashes during config-time upstream auto-detection because `json_request()` is now defined before config loading runs
+
 ## [0.1.2] - 2026-04-11
 
 ### Changed
