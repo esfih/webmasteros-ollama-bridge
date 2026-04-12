@@ -27,7 +27,7 @@ from urllib.request import Request, urlopen
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 19081
 DEFAULT_UPSTREAM = "http://127.0.0.1:11434"
-APP_VERSION = "0.1.6"
+APP_VERSION = "0.1.7"
 
 LOGGER = logging.getLogger("webmasteros.ollama_bridge")
 THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think>", re.IGNORECASE | re.DOTALL)
@@ -260,6 +260,245 @@ def sanitize_chat_response(payload: dict, strip_think_blocks: bool) -> dict:
     return cleaned
 
 
+def record_request(path: str, status: int, elapsed_ms: int, extra: dict | None = None) -> None:
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "path": path,
+        "status": int(status),
+        "elapsed_ms": int(elapsed_ms),
+    }
+    if extra:
+        entry["extra"] = extra
+    REQUEST_LOG.append(entry)
+    if len(REQUEST_LOG) > 200:
+        del REQUEST_LOG[: len(REQUEST_LOG) - 200]
+
+
+def build_ui_html() -> str:
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebmasterOS Ollama Bridge</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      --bg: #0b1220;
+      --panel: #121b2f;
+      --panel-2: #0f172a;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+      --border: rgba(148, 163, 184, 0.18);
+    }}
+    body {{
+      margin: 0;
+      background: radial-gradient(circle at top, #16213b 0%, #0b1220 55%, #0a1020 100%);
+      color: var(--text);
+    }}
+    header {{
+      padding: 24px 28px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }}
+    header h1 {{
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }}
+    header .meta {{
+      color: var(--muted);
+      font-size: 12px;
+    }}
+    main {{
+      padding: 20px 28px 32px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }}
+    .card {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 18px 30px rgba(0,0,0,0.18);
+    }}
+    .card h2 {{
+      margin: 0 0 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+    }}
+    .stat {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+      font-size: 13px;
+    }}
+    .stat:last-child {{ border-bottom: none; }}
+    .pill {{
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }}
+    .pill.good {{ background: rgba(34,197,94,0.2); color: var(--good); }}
+    .pill.warn {{ background: rgba(245,158,11,0.2); color: var(--warn); }}
+    .pill.bad {{ background: rgba(239,68,68,0.2); color: var(--bad); }}
+    .list {{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      max-height: 180px;
+      overflow: auto;
+      background: var(--panel-2);
+      border-radius: 10px;
+      padding: 10px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }}
+    .list code {{
+      color: var(--text);
+    }}
+    .button {{
+      background: rgba(56,189,248,0.18);
+      border: 1px solid rgba(56,189,248,0.4);
+      color: #e0f2fe;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }}
+    .grid-wide {{
+      grid-column: 1 / -1;
+    }}
+    .requests {{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }}
+    .requests div {{
+      display: grid;
+      grid-template-columns: 90px 1fr 70px 80px;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+    }}
+    .requests div:last-child {{ border-bottom: none; }}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>WebmasterOS Ollama Bridge</h1>
+      <div class="meta">Local helper status console</div>
+    </div>
+    <button class="button" id="refresh">Refresh</button>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Bridge Status</h2>
+      <div class="stat"><span>Status</span><span class="pill good" id="bridge-status">Running</span></div>
+      <div class="stat"><span>Version</span><span id="bridge-version">-</span></div>
+      <div class="stat"><span>Uptime</span><span id="bridge-uptime">-</span></div>
+      <div class="stat"><span>Requests</span><span id="bridge-requests">-</span></div>
+      <div class="stat"><span>Proxy Mode</span><span id="bridge-mode">-</span></div>
+    </section>
+    <section class="card">
+      <h2>Upstream Ollama</h2>
+      <div class="stat"><span>URL</span><span id="upstream-url">-</span></div>
+      <div class="stat"><span>Models</span><span id="upstream-models">-</span></div>
+      <div class="list" id="model-list">Loading models...</div>
+    </section>
+    <section class="card">
+      <h2>Connection</h2>
+      <div class="stat"><span>Bind</span><span id="bridge-bind">-</span></div>
+      <div class="stat"><span>Config</span><span id="bridge-config">-</span></div>
+      <div class="stat"><span>Log</span><span id="bridge-log">-</span></div>
+      <div class="stat"><span>Allow Origins</span><span id="bridge-origins">-</span></div>
+    </section>
+    <section class="card grid-wide">
+      <h2>Recent Requests</h2>
+      <div class="requests" id="request-log"></div>
+    </section>
+  </main>
+  <script>
+    const refreshButton = document.getElementById('refresh');
+    const el = (id) => document.getElementById(id);
+
+    function formatDuration(seconds) {{
+      if (seconds < 60) return seconds + 's';
+      const mins = Math.floor(seconds / 60);
+      const rem = seconds % 60;
+      return mins + 'm ' + rem + 's';
+    }}
+
+    function renderRequests(rows) {{
+      const host = el('request-log');
+      host.innerHTML = '';
+      if (!rows || !rows.length) {{
+        host.textContent = 'No recent requests yet.';
+        return;
+      }}
+      rows.slice().reverse().forEach((row) => {{
+        const div = document.createElement('div');
+        const status = row.status >= 200 && row.status < 300 ? row.status : row.status;
+        div.innerHTML = `
+          <span>${row.timestamp || '-'}</span>
+          <span>${row.path || '-'}</span>
+          <span>${status}</span>
+          <span>${row.elapsed_ms || 0}ms</span>
+        `;
+        host.appendChild(div);
+      }});
+    }}
+
+    async function fetchData() {{
+      const response = await fetch('/ui/data');
+      const payload = await response.json();
+      if (!payload || !payload.success) return;
+
+      el('bridge-version').textContent = payload.version || '-';
+      el('bridge-uptime').textContent = formatDuration(payload.uptime_seconds || 0);
+      el('bridge-requests').textContent = payload.request_count || 0;
+      el('bridge-mode').textContent = payload.proxy_mode || '-';
+      el('bridge-bind').textContent = payload.bind ? `${payload.bind.host}:${payload.bind.port}` : '-';
+      el('bridge-config').textContent = payload.config_path || '-';
+      el('bridge-log').textContent = payload.log_path || '-';
+      el('bridge-origins').textContent = payload.allow_origins && payload.allow_origins.length ? payload.allow_origins.join(', ') : 'Any';
+      el('upstream-url').textContent = payload.upstream_url || '-';
+
+      const modelList = el('model-list');
+      const tagResp = await fetch('/api/tags');
+      const tagPayload = await tagResp.json();
+      const models = tagPayload && Array.isArray(tagPayload.models) ? tagPayload.models : [];
+      el('upstream-models').textContent = models.length;
+      modelList.innerHTML = models.length
+        ? models.map((m) => `<div><code>${m.name || '-'}</code></div>`).join('')
+        : '<span>No models detected.</span>';
+
+      renderRequests(payload.recent_requests || []);
+    }}
+
+    refreshButton.addEventListener('click', () => {{
+      fetchData().catch(() => {{}});
+    }});
+
+    fetchData().catch(() => {{}});
+  </script>
+</body>
+</html>"""
+
 ARGS = parse_args()
 CONFIG_PATH = Path(ARGS.config).expanduser()
 
@@ -282,6 +521,8 @@ PROXY_MODE = normalize_proxy_mode(ARGS.proxy_mode or CONFIG["proxy_mode"])
 INJECT_SYSTEM_NOTHINK = bool(CONFIG["inject_system_nothink"])
 STRIP_THINK_BLOCKS = bool(CONFIG["strip_think_blocks"])
 REQUEST_COUNT = 0
+STARTED_AT = time.time()
+REQUEST_LOG: list[dict] = []
 
 setup_logging(LOG_PATH)
 
@@ -295,6 +536,12 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
+        if self.path == "/ui":
+            self._handle_ui()
+            return
+        if self.path == "/ui/data":
+            self._handle_ui_data()
+            return
         if self.path == "/proxy/status":
             self._handle_proxy_status()
             return
@@ -314,6 +561,39 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
             self._proxy_chat()
             return
         self._write_json(404, {"success": False, "error": "not_found"})
+
+    def _handle_ui(self) -> None:
+        html = build_ui_html()
+        encoded = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _handle_ui_data(self) -> None:
+        uptime = max(0, int(time.time() - STARTED_AT))
+        self._write_json(
+            200,
+            {
+                "success": True,
+                "version": APP_VERSION,
+                "uptime_seconds": uptime,
+                "request_count": REQUEST_COUNT,
+                "proxy_mode": PROXY_MODE,
+                "inject_system_nothink": INJECT_SYSTEM_NOTHINK,
+                "strip_think_blocks": STRIP_THINK_BLOCKS,
+                "bind": {
+                    "host": BIND_HOST,
+                    "port": BIND_PORT,
+                },
+                "upstream_url": UPSTREAM,
+                "allow_origins": sorted(ALLOWED_ORIGINS),
+                "config_path": str(CONFIG_PATH),
+                "log_path": str(LOG_PATH),
+                "recent_requests": REQUEST_LOG[-40:],
+            },
+        )
 
     def _handle_proxy_status(self) -> None:
         self._write_json(
@@ -371,7 +651,10 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         )
 
     def _proxy_tags(self) -> None:
+        started_at = time.time()
         status, payload, _headers = json_request(f"{UPSTREAM}/api/tags", method="GET")
+        elapsed_ms = int((time.time() - started_at) * 1000)
+        record_request("GET /api/tags", status, elapsed_ms, {"model_count": len(payload.get("models", [])) if isinstance(payload, dict) else 0})
         self._write_json(status, payload)
 
     def _proxy_chat(self) -> None:
@@ -388,6 +671,15 @@ class OllamaBridgeHandler(BaseHTTPRequestHandler):
         elapsed_ms = int((time.time() - started_at) * 1000)
         response_payload = sanitize_chat_response(response_payload, STRIP_THINK_BLOCKS)
         REQUEST_COUNT += 1
+        record_request(
+            "POST /api/chat",
+            status,
+            elapsed_ms,
+            {
+                "model": outgoing_payload.get("model", "") if isinstance(outgoing_payload, dict) else "",
+                "mode": PROXY_MODE,
+            },
+        )
         LOGGER.info(
             "RESP /api/chat %s %sms mode:%s model:%s",
             status,

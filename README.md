@@ -69,6 +69,12 @@ Typical desktop setup:
 python3 bridge.py --ollama-url http://127.0.0.1:11434
 ```
 
+Local UI (once the bridge is running):
+
+```
+http://127.0.0.1:19081/ui
+```
+
 Write a default config and exit:
 
 ```bash
@@ -100,6 +106,8 @@ python3 bridge.py --port 19081 --ollama-url http://127.0.0.1:11434
 - `POST /api/chat`
 - `GET /proxy/status`
 - `POST /proxy/mode`
+- `GET /ui` (local status console UI)
+- `GET /ui/data` (JSON backing the UI)
 
 ## Proxy Modes
 

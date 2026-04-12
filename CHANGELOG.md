@@ -4,6 +4,13 @@ All notable changes to `WebmasterOS Ollama Bridge` should be documented in this 
 
 The format is intentionally simple while the project is still in monorepo incubation.
 
+## [0.1.7] - 2026-04-12
+
+### Added
+
+- Local status UI at `/ui` with JSON backing at `/ui/data`
+- Recent request log and upstream model list in the UI for quick diagnostics
+
 ## [0.1.6] - 2026-04-11
 
 ### Changed
